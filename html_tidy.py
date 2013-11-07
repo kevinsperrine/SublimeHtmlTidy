@@ -6,7 +6,7 @@ import os
 import sys
 import subprocess
 import urllib
-import urllib2
+#import urllib2
 import base64
 from collections import defaultdict
 
@@ -115,12 +115,13 @@ def tidy_string(input_string, command):
             values = {'content': base64.b64encode(input_string.encode('utf8')),
                        'arguments': str(command)}
 
-            data = urllib.urlencode(values)
-            req = urllib2.Request(url, data, headers={"Accept": "text/html"})
-            response = urllib2.urlopen(req)
+            data = urllib.parse.urlencode(values)
+            binary_data = data.encode('utf8')
+            req = urllib.request.Request(url, binary_data, headers={"Accept": "text/html"})
+            response = urllib.request.urlopen(req)
             returned_content = response.read()
-            # print 'HtmlTidy: returned_content ' + returned_content
-            tidied = returned_content
+            # print('HtmlTidy: returned_content ' + returned_content)
+            tidied = returned_content.decode(encoding='UTF-8')
             # error = 'the web api responded: ' + str(returned_content)
             error = ''
             returncode = 0
@@ -139,7 +140,7 @@ def tidy_string(input_string, command):
             universal_newlines=True
         )
 
-        tidied, error = p.communicate(input_string.encode('utf8'))
+        tidied, error = p.communicate(input_string)
         return tidied, error, p.returncode
 
 
@@ -191,27 +192,27 @@ def find_tidier(prefer_tidy):
         try:
             tidypath = os.path.normpath(pluginpath + '/win/tidy.exe')
             subprocess.call([tidypath, "-v"])
-            print "HTMLTidy: using Tidy found here: " + tidypath
+            print("HTMLTidy: using Tidy found here: " + tidypath)
             return tidypath, 'list'
         except OSError:
-            print "HTMLTidy: Didn't find tidy.exe in " + pluginpath
+            print("HTMLTidy: Didn't find tidy.exe in " + pluginpath)
             pass
 
     elif prefer_tidy == 'php':
         try:
-            print "HTMLTidy: Checking PHP Tidy module..."
+            print("HTMLTidy: Checking PHP Tidy module...")
             if check_php():
 
-                print "HTMLTidy: Using PHP Tidy module."
-                # print "HTMLTidy: retval: " + str(retval)
+                print("HTMLTidy: Using PHP Tidy module.")
+                # print("HTMLTidy: retval: " + str(retval))
                 return 'php "' + os.path.normpath(scriptpath) + '"', 'string'
             else:
-                print "HTMLTidy: Your PHP version doesn't include Tidy support"
-                # print "HTMLTidy: retval: " + str(retval)
+                print("HTMLTidy: Your PHP version doesn't include Tidy support")
+                # print("HTMLTidy: retval: " + str(retval))
                 pass
 
         except OSError:
-            print "HTMLTidy: Not using PHP"
+            print("HTMLTidy: Not using PHP")
             pass
 
     return "webservice", 'list'
@@ -219,7 +220,7 @@ def find_tidier(prefer_tidy):
 
 def fixup(string):
     'Remove double newlines & decode text.'
-    return re.sub(r'\r\n|\r', '\n', string.decode('utf-8'))
+    return re.sub(r'\r\n|\r', '\n', string)
 
 
 def compile_args(args, script, style):
@@ -249,7 +250,7 @@ def get_args(settings, args):
         if custom_value == False:
             custom_value = 0
 
-        # print "HtmlTidy: setting " + option + ": " + custom_value
+        # print("HtmlTidy: setting " + option + ": " + custom_value)
         args += [('--' + option, str(custom_value))]
 
     return args
@@ -295,11 +296,12 @@ class HtmlTidyCommand(sublime_plugin.TextCommand):
         # This extends the args just given, so that a user-given value for tab_size takes precedence.
         args = get_args(settings, args)
         prefer_tidy = settings.get('prefer_tidy', 'webservice')
+        deselect_flag = False
 
         try:
             script, arg_type = find_tidier(prefer_tidy)
         except OSError:
-            print "HTMLTidy: Couldn't find Tidy or PHP. Stopping without Tidying anything."
+            print("HTMLTidy: Couldn't find Tidy or PHP. Stopping without Tidying anything.")
             return
 
         allow_dupe_ids = settings.get('allow-duplicate-ids', False)
@@ -316,8 +318,8 @@ class HtmlTidyCommand(sublime_plugin.TextCommand):
 
         command = compile_args(args, script, style=arg_type)
 
-        print 'HtmlTidy: ' + str(command)
-        #print "HtmlTidy: Passing this script and arguments: " + script + " " + str(args)
+        print('HtmlTidy: ' + str(command))
+        #print("HtmlTidy: Passing this script and arguments: " + script + " " + str(args))
 
         for sel in self.view.sel():
 
@@ -340,13 +342,13 @@ class HtmlTidyCommand(sublime_plugin.TextCommand):
                     self.deselect()
 
                 if retval == 1:
-                    print "HTMLTidy: Tidy had some warnings for you:\n" + err
+                    print("HTMLTidy: Tidy had some warnings for you:\n" + err)
 
             else:
-                print "HTMLTidy experienced an error. Opening up a new file to show you."
+                print("HTMLTidy experienced an error. Opening up a new file to show you.")
                 # Again, adapted from the Sublime Text 1 webdevelopment package
                 nv = self.view.window().new_file()
-                nv.set_scratch(1)
+                nv.set_scratch(True)
                 # Append the given command to the error message.
                 nv.insert(edit, 0, err + "\n" + str(command))
                 nv.set_name('HTMLTidy: Tidy errors')
